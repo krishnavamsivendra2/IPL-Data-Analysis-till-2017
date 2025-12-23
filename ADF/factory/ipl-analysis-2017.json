@@ -1,0 +1,9 @@
+{
+	"name": "ipl-analysis-2017",
+	"location": "eastus",
+	"identity": {
+		"type": "SystemAssigned",
+		"principalId": "d1e73af0-d206-4371-abaa-bcfb713fad08",
+		"tenantId": "f82b66d2-6661-43ee-9f2d-4d9a74ebad4b"
+	}
+}

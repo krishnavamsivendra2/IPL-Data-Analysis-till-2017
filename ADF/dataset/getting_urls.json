@@ -1,0 +1,20 @@
+{
+	"name": "getting_urls",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "ls_connection_to_storage_account",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "Json",
+		"typeProperties": {
+			"location": {
+				"type": "AzureBlobFSLocation",
+				"fileName": "GIT Config JSON For BULK Data Transfer.json",
+				"fileSystem": "parameters"
+			}
+		},
+		"schema": {}
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}
