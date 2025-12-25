@@ -5,7 +5,7 @@ WITH IDENTITY = 'identity_name'
 
 CREATE EXTERNAL DATA SOURCE gold_dest
 WITH(
-    LOCATION = 'https://iplanalysis.dfs.core.windows.net/<gold_container_name>',
+    LOCATION = 'https://<storage_account_name>.dfs.core.windows.net/<gold_container_name>',
     CREDENTIAL = <credential_name>
 )
 
