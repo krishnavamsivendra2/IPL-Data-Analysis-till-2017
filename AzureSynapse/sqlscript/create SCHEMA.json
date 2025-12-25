@@ -2,7 +2,7 @@
 	"name": "create SCHEMA",
 	"properties": {
 		"content": {
-			"query": "CREATE SCHEMA gold",
+			"query": "/*\ngold.*      -- views\ngold_ext.*  -- external tables\n\n*/\n\nCREATE SCHEMA gold;\n\nCREATE SCHEMA gold_ext;",
 			"metadata": {
 				"language": "sql"
 			},
