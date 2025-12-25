@@ -1,0 +1,17 @@
+{
+	"name": "Creating External tables",
+	"properties": {
+		"content": {
+			"query": "CREATE MASTER KEY ENCRYPTION BY PASSWORD ='<password>' \n\nCREATE DATABASE SCOPED CREDENTIAL credential_name\nWITH IDENTITY = 'identity_name'\n\nCREATE EXTERNAL DATA SOURCE gold_dest\nWITH(\n    LOCATION = 'https://iplanalysis.dfs.core.windows.net/gold',\n    CREDENTIAL = cred_vamsi\n)\n\nCREATE EXTERNAL FILE FORMAT gold_format\nWITH(\n    FORMAT_TYPE = PARQUET,\n    DATA_COMPRESSION = 'org.apache.hadoop.io.compress.SnappyCodec'\n);\n\n",
+			"metadata": {
+				"language": "sql"
+			},
+			"currentConnection": {
+				"databaseName": "iplanalysis",
+				"poolName": "Built-in"
+			},
+			"resultLimit": 5000
+		},
+		"type": "SqlQuery"
+	}
+}
