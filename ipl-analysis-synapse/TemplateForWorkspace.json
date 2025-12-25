@@ -1,0 +1,157 @@
+{
+	"$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"workspaceName": {
+			"type": "string",
+			"metadata": "Workspace name",
+			"defaultValue": "ipl-analysis-synapse"
+		},
+		"ipl-analysis-synapse-WorkspaceDefaultSqlServer_connectionString": {
+			"type": "secureString",
+			"metadata": "Secure string for 'connectionString' of 'ipl-analysis-synapse-WorkspaceDefaultSqlServer'",
+			"defaultValue": "Integrated Security=False;Encrypt=True;Connection Timeout=30;Data Source=tcp:ipl-analysis-synapse.sql.azuresynapse.net,1433;Initial Catalog=@{linkedService().DBName}"
+		},
+		"ipl-analysis-synapse-WorkspaceDefaultStorage_properties_typeProperties_url": {
+			"type": "string",
+			"defaultValue": "https://managedsynapseipl.dfs.core.windows.net"
+		}
+	},
+	"variables": {
+		"workspaceId": "[concat('Microsoft.Synapse/workspaces/', parameters('workspaceName'))]"
+	},
+	"resources": [
+		{
+			"name": "[concat(parameters('workspaceName'), '/ipl-analysis-synapse-WorkspaceDefaultSqlServer')]",
+			"type": "Microsoft.Synapse/workspaces/linkedServices",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"parameters": {
+					"DBName": {
+						"type": "String"
+					}
+				},
+				"annotations": [],
+				"type": "AzureSqlDW",
+				"typeProperties": {
+					"connectionString": "[parameters('ipl-analysis-synapse-WorkspaceDefaultSqlServer_connectionString')]"
+				},
+				"connectVia": {
+					"referenceName": "AutoResolveIntegrationRuntime",
+					"type": "IntegrationRuntimeReference"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/ipl-analysis-synapse-WorkspaceDefaultStorage')]",
+			"type": "Microsoft.Synapse/workspaces/linkedServices",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"annotations": [],
+				"type": "AzureBlobFS",
+				"typeProperties": {
+					"url": "[parameters('ipl-analysis-synapse-WorkspaceDefaultStorage_properties_typeProperties_url')]"
+				},
+				"connectVia": {
+					"referenceName": "AutoResolveIntegrationRuntime",
+					"type": "IntegrationRuntimeReference"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/AutoResolveIntegrationRuntime')]",
+			"type": "Microsoft.Synapse/workspaces/integrationRuntimes",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"type": "Managed",
+				"typeProperties": {
+					"computeProperties": {
+						"location": "AutoResolve",
+						"dataFlowProperties": {
+							"computeType": "General",
+							"coreCount": 8,
+							"timeToLive": 0
+						}
+					}
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/WorkspaceSystemIdentity')]",
+			"type": "Microsoft.Synapse/workspaces/credentials",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"type": "ManagedIdentity",
+				"typeProperties": {}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/Create Gold Views')]",
+			"type": "Microsoft.Synapse/workspaces/sqlscripts",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"content": {
+					"query": "-- viweing column names in ball_by_ball\nSELECT\n    COLUMN_NAME,\n    DATA_TYPE\nFROM INFORMATION_SCHEMA.COLUMNS\nWHERE TABLE_SCHEMA = 'gold'\n  AND TABLE_NAME = 'ball_by_ball'\nORDER BY ORDINAL_POSITION;\n\n---- Aggregates ball-by-ball data to find total runs scored by each player per season\nCREATE OR ALTER VIEW gold.top_scoring_batsmen_per_season AS\nSELECT\n    p.player_name,\n    m.season_year,\n    SUM(b.runs_scored) AS total_runs\nFROM gold.ball_by_ball b\nJOIN gold.match m\n    ON b.match_id = m.match_id\nJOIN gold.player_match pm\n    ON m.match_id = pm.match_id\n   AND b.striker = pm.player_id\nJOIN gold.player p\n    ON p.player_id = pm.player_id\nGROUP BY\n    p.player_name,\n    m.season_year;\n\n-- Analyzes powerplay bowling performance by country based on economy and wickets\nSELECT\n    p.country_name,\n    p.player_name,\n    AVG(b.runs_scored) AS avg_runs_per_ball,\n    SUM(CASE WHEN b.bowler_wicket = 1 THEN 1 ELSE 0 END) AS total_wickets\nFROM gold.ball_by_ball b\nJOIN gold.player_match pm\n    ON b.match_id = pm.match_id\n   AND b.bowler = pm.player_id\nJOIN gold.player p\n    ON pm.player_id = p.player_id\nWHERE b.over_id <= 6\nGROUP BY\n    p.country_name,\n    p.player_name\nORDER BY\n    avg_runs_per_ball ASC,\n    total_wickets DESC;\n",
+					"metadata": {
+						"language": "sql"
+					},
+					"currentConnection": {
+						"databaseName": "iplanalysis",
+						"poolName": "Built-in"
+					},
+					"resultLimit": 5000
+				},
+				"type": "SqlQuery"
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/Reading Silver Data as Views')]",
+			"type": "Microsoft.Synapse/workspaces/sqlscripts",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"content": {
+					"query": "-- create Ball By Ball view\nCREATE OR ALTER VIEW gold.ball_by_ball\nAS\n    SELECT *\n    FROM OPENROWSET(\n        BULK 'https://iplanalysis.dfs.core.windows.net/silver/IPL_Ball_By_Ball/*.parquet',\n        FORMAT = 'PARQUET'\n    ) AS query1;\n\n-- create Match view\nCREATE OR ALTER VIEW gold.match\nAS\n    SELECT *\n    FROM OPENROWSET(\n        BULK 'https://iplanalysis.dfs.core.windows.net/silver/IPL_Match/*.parquet',\n        FORMAT = 'PARQUET'\n    ) AS query1;\n\n-- create Player view\nCREATE OR ALTER VIEW gold.player\nAS\n    SELECT *\n    FROM OPENROWSET(\n        BULK 'https://iplanalysis.dfs.core.windows.net/silver/IPL_Player/*.parquet',\n        FORMAT = 'PARQUET'\n    ) AS query1;\n\n-- create Player Match view\nCREATE OR ALTER VIEW gold.player_match\nAS\n    SELECT *\n    FROM OPENROWSET(\n        BULK 'https://iplanalysis.dfs.core.windows.net/silver/IPL_Player_Match/*.parquet',\n        FORMAT = 'PARQUET'\n    ) AS query1;\n\n-- create Teams view\nCREATE OR ALTER VIEW gold.teams\nAS\n    SELECT *\n    FROM OPENROWSET(\n        BULK 'https://iplanalysis.dfs.core.windows.net/silver/IPL_Team/*.parquet',\n        FORMAT = 'PARQUET'\n    ) AS query1;\n\n\n",
+					"metadata": {
+						"language": "sql"
+					},
+					"currentConnection": {
+						"databaseName": "iplanalysis",
+						"poolName": "Built-in"
+					},
+					"resultLimit": 5000
+				},
+				"type": "SqlQuery"
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/create SCHEMA')]",
+			"type": "Microsoft.Synapse/workspaces/sqlscripts",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"content": {
+					"query": "CREATE SCHEMA gold",
+					"metadata": {
+						"language": "sql"
+					},
+					"currentConnection": {
+						"databaseName": "iplanalysis",
+						"poolName": "Built-in"
+					},
+					"resultLimit": 5000
+				},
+				"type": "SqlQuery"
+			},
+			"dependsOn": []
+		}
+	]
+}
